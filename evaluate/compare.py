@@ -1,13 +1,12 @@
-import os, json, logging
-from hud.tools.types import EvaluationResult
-import openpyxl
+import os
+import logging
 import datetime
+import openpyxl
 
 
 logger = logging.getLogger(__name__)
 
 
-# def compare(proc_file, gt_file, answer_position, instruction_type):
 def compare(proc_file, gt_file, answer_position):
     if not os.path.exists(proc_file):
         return False, "File not exist"
@@ -61,17 +60,6 @@ def cell_level_compare(wb_gt, wb_proc, sheet_name, cell_range):
                     ws_proc has {cell_proc.value}"
             return False, msg
 
-        # if not compare_fill_color(cell_gt.fill, cell_proc.fill):
-        #     msg = f"Fill color difference at cell {cell_gt.coordinate}: ws_gt has {cell_gt.fill.fgColor.rgb},\
-        #             ws_proc has {cell_proc.fill.fgColor.rgb}"
-        #     return False, msg
-
-        # if not compare_font_color(cell_gt.font, cell_proc.font):
-        #     # msg = f"Font color difference at cell {cell_gt.coordinate}: ws_gt has {cell_gt.font.color.rgb},\
-        #     #        ws_proc has {cell_proc.font.color.rgb}"
-        #     msg = f"Font color difference at cell {cell_gt.coordinate}"
-        #     return False, msg
-
     print("Cell values in the specified range are identical.")
     return True, ""
 
@@ -105,7 +93,6 @@ def compare_cell_value(v1, v2):
     if (v1 == "" and v2 == "") or (v1 is None and v2 is None):
         return True
     if type(v1) != type(v2):
-        # print(type(v1), type(v2))
         return False
     if v1 == v2:
         return True
