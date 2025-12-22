@@ -28,20 +28,6 @@ DEV_URL = os.getenv("HUD_DEV_URL", "http://localhost:8765/mcp")
 env = Environment("jupyter")
 env.connect_url(DEV_URL)
 
-# Load task data
-def load_tasks(n: int = 10) -> list[dict]:
-    """Load first N tasks from full_tasks.json."""
-    tasks_file = Path(__file__).parent / "full_tasks.json"
-    if not tasks_file.exists():
-        print(f"Warning: {tasks_file} not found, using hardcoded tasks only")
-        return []
-    
-    with open(tasks_file) as f:
-        all_tasks = json.load(f)
-    
-    return all_tasks[:n]
-
-
 async def test_tools_standalone():
     """Test environment tools directly."""
     print("=== Test 1: Standalone Tools ===")
@@ -108,75 +94,6 @@ async def test_with_agent():
     print(f"Reward: {reward_value}")
 
 
-async def test_multiple_tasks():
-    """Test multiple tasks from full_tasks.json with agent."""
-    print("\n=== Test 4: Multiple Tasks (First 10 from dataset) ===")
-    
-    tasks_data = load_tasks(n=10)
-    if not tasks_data:
-        print("No tasks loaded, skipping this test")
-        return
-    
-    print(f"Loaded {len(tasks_data)} tasks")
-    results = []
-    
-    for i, task_data in enumerate(tasks_data, 1):
-        args = task_data["args"]
-        task_id = args["id"]
-        
-        print(f"\n[{i}/{len(tasks_data)}] Running task {task_id}...")
-        
-        try:
-            task = env(
-                "spreadsheet",
-                id=args["id"],
-                instruction=args["instruction"],
-                spreadsheet_path=args["spreadsheet_path"],
-                instruction_type=args["instruction_type"],
-                answer_position=args["answer_position"],
-                output_path=args["output_path"],
-            )
-            
-            async with hud.eval(task) as ctx:
-                agent = OpenAIChatAgent.create(model="gpt-4o")
-                await agent.run(ctx, max_steps=10)
-            
-            reward = getattr(ctx, "reward", None)
-            
-            results.append({
-                "task_id": task_id,
-                "reward": reward,
-                "success": True
-            })
-            
-            print(f"[{i}/{len(tasks_data)}] ✓ Task {task_id} complete - Reward: {reward}")
-        
-        except Exception as e:
-            print(f"[{i}/{len(tasks_data)}] ✗ Task {task_id} failed: {e}")
-            results.append({
-                "task_id": task_id,
-                "reward": None,
-                "success": False,
-                "error": str(e)
-            })
-    
-    # Print summary
-    print("\n" + "=" * 50)
-    print("SUMMARY")
-    print("=" * 50)
-    successful = sum(1 for r in results if r["success"])
-    print(f"Total:      {len(results)}")
-    print(f"Successful: {successful}")
-    print(f"Failed:     {len(results) - successful}")
-    
-    rewards = [r["reward"] for r in results if r["reward"] is not None]
-    if rewards:
-        avg_reward = sum(rewards) / len(rewards)
-        print(f"Avg Reward: {avg_reward:.3f}")
-    
-    return results
-
-
 async def main():
     print("Jupyter Environment - Local Test")
     print("=" * 50)
@@ -187,10 +104,8 @@ async def main():
     print()
 
     await test_tools_standalone()
-    # Uncomment to run scenarios:
     await test_spreadsheet_scenario()
     await test_with_agent()
-    # await test_multiple_tasks()
 
 
 if __name__ == "__main__":
