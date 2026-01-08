@@ -1,2 +1,7 @@
 data
 hud.lock.yaml
+.env
+__pycache__/
+*.pyc
+*.pyo
+.cursor/

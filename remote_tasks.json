@@ -1,0 +1,14 @@
+[
+  {
+    "env": {"name": "hud-jupyter"},
+    "scenario": "jupyter:spreadsheet",
+    "args": {
+      "id": "22-12",
+      "instruction": "I need a macro for my Excel file that updates the values in column E based on the data in columns A and D. Specifically, if column A is equal to 'USS', then for each corresponding row, check column D for the pay level; if the pay level equals 'R01', change the total in column E to 15.00, and if the pay level is any other 'R' level, assign varying amounts as follows: R01=15, R02=17, R03=23, R04=27, R05=32, R06=34. If the pay level does not match these specified 'R' levels, the total should be changed to 10.",
+      "spreadsheet_path": "/app/data/all_data_912/spreadsheet/22-12/1_22-12_input.xlsx",
+      "instruction_type": "Sheet-Level Manipulation",
+      "answer_position": "E2:E19",
+      "output_path": "/app/data/all_data_912/spreadsheet/22-12/1_22-12_output.xlsx"
+    }
+  }
+]

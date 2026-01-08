@@ -1,68 +1,229 @@
-# Jupyter Env (for SpreadSheetBench)
+# Jupyter Environment
 
-## QuickStart
+A HUD environment for evaluating spreadsheet manipulation tasks.
 
-### MCP Server from Dockerhub (Don't Have to Build Docker Image)
+## 1. Deploy to Platform
 
-Run task by
+To deploy this environment to [hud.ai](https://hud.ai):
+
+1. Push this repo to GitHub
+2. Go to [hud.ai](https://hud.ai) → **New** → **Environment**
+3. Connect your GitHub repo
+4. Push changes to trigger builds
+
+Once deployed, your environment is accessible by its slug (e.g., `my-org/hud-jupyter`). You can then run evaluations against datasets/tasks on the platform.
+
+## 2. Define Tools and Scenarios
+
+Tools are functions agents can call. Scenarios define the evaluation lifecycle.
+
+### Available Tools
+
+This environment provides a **Jupyter kernel tool** for executing Python code (implemented by `tools/jupyter.py`). Successful code is automatically recorded to `/app/shared_data/1_solution.py`.
+
+### Available Scenarios
+
+| Scenario      | Description                                                                                                                                       |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `spreadsheet` | The SpreadSheetBench task loop: provide an instruction + input `.xlsx`, let the agent write Python code to solve it, then evaluate on 3 instances |
+
+## 3. Create Tasks from Scenarios
+
+Tasks are scenario instances with specific arguments.
+
+### In Code
+
+```python
+tasks = [
+    env("spreadsheet",
+        id="13-1",
+        instruction="How can I combine data...",
+        spreadsheet_path="/app/data/all_data_912/spreadsheet/13-1/1_13-1_input.xlsx",
+        instruction_type="Sheet-Level Manipulation",
+        answer_position="A3:D32",
+        output_path="/app/data/all_data_912/spreadsheet/13-1/1_13-1_output.xlsx"
+    ),
+]
 ```
-hud eval Genteki/SpreadSheetBench
+
+### From JSON
+
+```json
+[
+  {
+    "env": { "name": "my-org/hud-jupyter" },
+    "scenario": "jupyter:spreadsheet",
+    "args": {
+      "id": "13-1",
+      "instruction": "How can I combine data...",
+      "spreadsheet_path": "/app/data/all_data_912/spreadsheet/13-1/1_13-1_input.xlsx",
+      "instruction_type": "Sheet-Level Manipulation",
+      "answer_position": "A3:D32",
+      "output_path": "/app/data/all_data_912/spreadsheet/13-1/1_13-1_output.xlsx"
+    }
+  }
+]
 ```
 
-### Local MCP Server
+### On Platform
 
-First we build the docker image with
-```
-docker build -t <image/name> .
-```
-Then modify the docker image name in `test_task.json`. Finally, load all `api_key` needed into environment varible and run
+After deploying, create tasks from your scenarios on [hud.ai](https://hud.ai). Access them by slug:
 
-```
-hud eval
+```python
+from hud.datasets import load_tasks
+tasks = load_tasks("FRDY/SpreadSheetBench-v5")
 ```
 
-## File Structure
+### Task Arguments
 
-`environments/jupyter` file sturcture:
+- `spreadsheet_path` — path to the **input** workbook
+- `output_path` — where agent should save the **modified** workbook
+- `answer_position` — cell range used for scoring (compared against ground truth)
+
+## 4. Run Evaluations
+
+### On Platform
+
+Run evaluations at scale directly on [hud.ai](https://hud.ai) with parallel execution and automatic tracing.
+
+### CLI
+
+```bash
+# Evaluate a published dataset of tasks (runs on platform)
+hud eval FRDY/SpreadSheetBench-v5 --remote
+
+# Evaluate a local JSON task file (runs on platform)
+hud eval ./remote_tasks.json --remote
 ```
-├── Dockerfile
-├── server
-│   ├── config.py
-│   ├── evaluate
-│   │   ├── compare.py
-│   │   ├── dumb.py
-│   │   ├── eval_all.py
-│   │   ├── eval_single.py
-│   │   ├── generalize.py
-│   │   └── __init__.py
+
+### Python
+
+```python
+import hud
+from hud.agents import OpenAIChatAgent  # See all models: https://hud.ai/models
+
+async with hud.eval(tasks) as ctx:
+    agent = OpenAIChatAgent.create(model="gpt-4o")  # Uses inference.hud.ai
+    await agent.run(ctx)
+
+# Results are automatically traced to hud.ai
+```
+
+### With Variants (A/B Testing)
+
+```python
+from env import env
+
+tasks = [
+    env("spreadsheet",
+        id="13-1",
+        instruction="How can I combine data...",
+        spreadsheet_path="/app/data/all_data_912/spreadsheet/13-1/1_13-1_input.xlsx",
+        instruction_type="Sheet-Level Manipulation",
+        answer_position="A3:D32",
+        output_path="/app/data/all_data_912/spreadsheet/13-1/1_13-1_output.xlsx"
+    ),
+]
+variants = {"model": ["gpt-4o-mini", "gpt-4o"]}
+
+async with hud.eval(tasks, variants=variants, group=2) as ctx:
+    agent = OpenAIChatAgent.create(model=ctx.variants["model"])
+    await agent.run(ctx)
+```
+
+## Configuration
+
+### API Keys
+
+| Variable            | When Required    | Description                                                                                                                                |
+| ------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `HUD_API_KEY`       | Platform         | Your HUD API key for running evaluations on [hud.ai](https://hud.ai) and accessing models via [inference.hud.ai](https://inference.hud.ai) |
+| `ANTHROPIC_API_KEY` | Local (if using) | Your Anthropic API key for Claude models                                                                                                   |
+| `OPENAI_API_KEY`    | Local (if using) | Your OpenAI API key for GPT models                                                                                                         |
+
+Get your HUD API key at [hud.ai/settings](https://hud.ai/settings).
+
+> **Note:** When running locally (not on the platform), you only need the API key for your LLM provider (e.g., `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`). `HUD_API_KEY` is only required when running evaluations on the HUD platform or using the HUD inference gateway.
+
+### Environment Details
+
+- **Data path**: Dataset is pre-loaded at `/app/data/` (downloaded during Docker build)
+- **Recorded solution**: Successful code is appended to `/app/shared_data/1_solution.py`
+- **Kernel gateway**: Started in the container on port `8888` (see `Dockerfile.hud`)
+
+## Local Development
+
+Use `hud dev` with hot-reload for fast iteration:
+
+```bash
+# 1. Build the container (first time, or after Dockerfile.hud changes)
+hud build
+
+# 2. Start dev server with hot-reload
+hud dev -w scenarios -w evaluate -w setup -w tools --port 8765
+
+# 3. In another terminal, run local tests
+uv run local_test.py
+```
+
+### Hot-Reload
+
+| Component        | Reloaded?           |
+| ---------------- | ------------------- |
+| `scenarios/*.py` | ✅ Yes              |
+| `evaluate/*.py`  | ✅ Yes (if watched) |
+| `setup/*.py`     | ✅ Yes (if watched) |
+| `tools/*.py`     | ✅ Yes (if watched) |
+| Jupyter kernel   | ❌ No (persists)    |
+
+**When to rebuild:** Dockerfile changes, dependency changes.
+
+## Structure
+
+```text
+hud-jupyter/
+├── env.py                  # Environment definition (v5 SDK)
+├── config.py               # Paths (/app/data, /app/shared_data)
+├── pyproject.toml          # Dependencies and project config
+├── Dockerfile.hud          # Container definition (kernelgateway + dataset download)
+├── tools/
 │   ├── __init__.py
-│   ├── main.py
-│   ├── pyproject.toml
-│   ├── setup
-│   │   ├── __init__.py
-│   │   └── load_spreadsheet.py
-│   └── tools
-│       ├── __init__.py
-│       └── jupyter_with_record.py
-└── test_task.json
+│   └── jupyter.py          # Jupyter tool wrapper that records code to 1_solution.py
+├── scenarios/
+│   ├── __init__.py
+│   └── spreadsheet.py      # SpreadSheetBench scenario
+├── evaluate/
+│   ├── __init__.py
+│   ├── eval_all.py         # Executes/generalizes solution across 3 instances
+│   ├── compare.py          # Cell-level comparison
+│   └── generalize.py       # Generalize instance-1 code to instances 2 and 3
+├── setup/
+│   └── __init__.py         # Setup helpers (data is pre-loaded)
+├── local_test.py           # Development testing script
+└── remote_tasks.json       # Sample v5-format task
 ```
-Here we introduce the main parts of the environments
-* `main.py` start point of MCP server
-* `tools/jupyter_with_record.py`: offer `execute_code` method to allow agent interacting with jupyter kernel and record the solution
-* `setup/`: setup methods for eval task
-* `evaluate/` evaluations method for eval task
 
+## How Evaluation Works
 
-## Related Linkd
-### Hugginface:
-* [Genteki/SpreadSheetBench-Tiny](https://huggingface.co/datasets/Genteki/SpreadSheetBench-Tiny) (Size: 10)
-* [Genteki/SpreadSheetBench-200](https://huggingface.co/datasets/Genteki/SpreadSheetBench-200) (Size: 200)
-* [Genteki/SpreadSheetBench](https://huggingface.co/datasets/Genteki/SpreadSheetBench) (Size: 912)
+1. Agent receives a spreadsheet manipulation prompt + file paths
+2. Agent uses the Jupyter tool to inspect and modify the spreadsheet via Python
+3. Code is recorded to `/app/shared_data/1_solution.py`
+4. Evaluation runs:
+   - Generalize the recorded code to instances 2 and 3
+   - Execute all three solutions
+   - Compare outputs to ground truth (cell-level)
+   - Reward = success_rate (0–1)
 
-### Example Traces (May require permission)
-* [Single Test Task](https://www.hud.ai/trace/d31de170-e70a-4abb-8f95-70512515dade)
-* [Genteki/SpreadSheetBench-Tiny Test](https://www.hud.ai/jobs/2c426368-e352-4c79-af4a-aefb136e3f58)
+## Related Links
 
-### Github
+### HuggingFace Datasets (source data)
 
-* Feature Branch: [New-Env-Jupyter](https://github.com/Genteki/hud-python/tree/New-Env-Jupyter)
+- [FRDY/SpreadSheetBench-v5](https://hud.ai/datasets/FRDY/SpreadSheetBench-v5) — v5 format tasks for this environment
+
+- [Genteki/SpreadSheetBench-Tiny](https://huggingface.co/datasets/Genteki/SpreadSheetBench-Tiny) (10 tasks)
+- [Genteki/SpreadSheetBench-200](https://huggingface.co/datasets/Genteki/SpreadSheetBench-200) (200 tasks)
+- [Genteki/SpreadSheetBench](https://huggingface.co/datasets/Genteki/SpreadSheetBench) (912 tasks)
+
+## Documentation
+
+Full documentation: [docs.hud.ai](https://docs.hud.ai)

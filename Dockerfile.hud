@@ -1,0 +1,45 @@
+FROM quay.io/jupyter/minimal-notebook:python-3.11
+
+USER root
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+# Install uv for faster package management
+RUN pip install uv
+
+# Copy all project files first
+COPY pyproject.toml /app/
+COPY env.py /app/
+COPY config.py /app/
+COPY tools/ /app/tools/
+COPY evaluate/ /app/evaluate/
+COPY setup/ /app/setup/
+COPY scenarios/ /app/scenarios/
+
+# Install dependencies using uv
+RUN uv pip install --system -e /app/
+
+# Create directories with proper ownership
+RUN mkdir -p /app/data /app/logs /app/shared_data /app/workspace /app/notebooks/ && \
+    chown -R $NB_UID:$NB_GID /app
+
+USER $NB_UID
+
+# Download and extract data from HuggingFace (as non-root user)
+RUN wget -q https://huggingface.co/datasets/KAKA22/SpreadsheetBench/resolve/main/spreadsheetbench_912_v0.1.tar.gz -O /tmp/data.tar.gz && \
+    tar --no-same-permissions -xzf /tmp/data.tar.gz -C /app/data && \
+    mv /app/data/all_data_912_v0.1 /app/data/all_data_912 && \
+    rm /tmp/data.tar.gz || echo "Warning: Dataset download failed. You may need to mount data as a volume."
+
+EXPOSE 8000 8888
+
+CMD ["sh", "-c", "\
+    jupyter kernelgateway --KernelGatewayApp.ip=0.0.0.0 --KernelGatewayApp.port=8888 >&2 & \
+    sleep 5 && \
+    exec python /app/env.py\
+    "]

@@ -1,6 +1,6 @@
-import os, json, logging
-import copy
-from ..config import SOLUTIONS_PATH
+import os
+import logging
+from config import SOLUTIONS_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,6 @@ def kmp(text: str, pattern: str) -> list[int]:
 
 def generalize_code(id: str):
     """Generalize solution code from instance 1 to instances 2 and 3."""
-    # src_path = "/app/shared_data/1_solution.py"
     src_path = os.path.join(SOLUTIONS_PATH, "1_solution.py")
 
     # Read code from source file
@@ -58,7 +57,6 @@ def generalize_code(id: str):
     for i in range(2, 4):
         src_pattern = f"1_{id}_"
         tgt_pattern = f"{i}_{id}_"
-        # tgt_path = f"/app/shared_data/{i}_solution.py"
         tgt_path = os.path.join(SOLUTIONS_PATH, f"{i}_solution.py")
 
         positions = kmp(code, src_pattern)

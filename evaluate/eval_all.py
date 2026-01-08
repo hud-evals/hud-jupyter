@@ -1,16 +1,14 @@
 import os
 import logging
 from pathlib import Path
-from .compare import compare
-from .generalize import generalize_code
-from ..config import VOLUMES_PATH, SOLUTIONS_PATH
-from ..tools import JupyterToolWithRecord
-from . import evaluate
+from evaluate.compare import compare
+from evaluate.generalize import generalize_code
+from config import VOLUMES_PATH, SOLUTIONS_PATH
+from tools.jupyter import JupyterToolWithRecord
 
 logger = logging.getLogger(__name__)
 
 
-@evaluate.tool("eval_all")
 async def eval_all(id: str, answer_position: str, dataset_path: str = "all_data_912"):
     """
     Evaluate solution on all three instances (generalization test).
@@ -22,10 +20,11 @@ async def eval_all(id: str, answer_position: str, dataset_path: str = "all_data_
 
     Args:
         id: Task ID
+        answer_position: Cell range to evaluate
         dataset_path: Path to dataset directory
 
     Returns:
-        EvaluationResult with aggregated results for all instances
+        Dict with reward, done, isError, content, and info fields
     """
     try:
         # Connect to the shared kernel
@@ -99,14 +98,14 @@ async def eval_all(id: str, answer_position: str, dataset_path: str = "all_data_
         success_rate = total_passed / total_instances
 
         # Build summary
-        summary = f"✅ Passed: {total_passed}/{total_instances} instances\n"
-        summary += f"📊 Success Rate: {success_rate:.1%}\n\n"
+        summary = f"Passed: {total_passed}/{total_instances} instances\n"
+        summary += f"Success Rate: {success_rate:.1%}\n\n"
 
         for i in range(1, 4):
             instance_key = f"instance_{i}"
             if instance_key in results:
                 result = results[instance_key]
-                status = "✅ PASS" if result.get("passed", False) else "❌ FAIL"
+                status = "PASS" if result.get("passed", False) else "FAIL"
                 summary += f"Instance {i}: {status}\n"
                 if not result.get("passed", False):
                     error_msg = (
@@ -118,7 +117,6 @@ async def eval_all(id: str, answer_position: str, dataset_path: str = "all_data_
 
         logger.info(f"Evaluation complete: {total_passed}/{total_instances} passed")
 
-        # Return plain dict (like browser environment) instead of EvaluationResult
         return {
             "reward": success_rate,
             "done": True,
@@ -136,11 +134,10 @@ async def eval_all(id: str, answer_position: str, dataset_path: str = "all_data_
 
     except Exception as e:
         logger.error(f"Evaluation error: {e}")
-        # Return plain dict (like browser environment) instead of EvaluationResult
         return {
             "reward": 0.0,
             "done": True,
             "isError": True,
-            "content": f"❌ ERROR: {str(e)}",
+            "content": f"ERROR: {str(e)}",
             "info": {"task_id": id, "error": str(e)},
         }
